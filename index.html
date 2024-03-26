@@ -3,32 +3,97 @@
   <head>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.2.1/css/ol.css" type="text/css">
     <style>
-      .map {
-        height: 400px;
+    body {
+      background-color: #1b1b1b;
+      color: #786d6d;
+    }  
+    table {
         width: 100%;
-      }
+        border-collapse: collapse;
+    }
+    th, td {
+        border: 1px solid #1b1b1b;
+        padding: 10px;
+        text-align: left;
+    }
+    th {
+        background-color: #ff1a1a;
+        color: white;
+    }
+    tr:nth-child(even) {
+        background-color: #ffffff;
+    }
+
+        .map {
+            height: 1080px;
+            width: 100%;
+        }
+        #lineSelect, #startTrack, #stopTrack {
+            margin: 10px;
+            padding: 10px;
+            font-size: 1.2em;
+        }
+        #startTrack, #stopTrack {
+            background-color: 	#ff1a1a;
+            border: none;
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            transition-duration: 0.4s;
+            cursor: pointer;
+        }
+        #startTrack:hover, #stopTrack:hover {
+            background-color: 	#4d9b35;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.2.1/build/ol.js"></script>
-    <title>Points From Code</title>
+    <title>Track Them Track Now</title>
   </head>
   <body>
     <div id="map" class="map"></div>
     <div id="info" style="display: none;"></div>
-    <label for="track">
-      track position
-      <input id="track" type="checkbox"/>
-    </label>
-    <p>
-      position accuracy : <code id="accuracy"></code>  
-      altitude : <code id="altitude"></code>  
-      altitude accuracy : <code id="altitudeAccuracy"></code>  
-      heading : <code id="heading"></code>  
-      speed : <code id="speed"></code>
-    </p>
+    <select id="lineSelect">
+      <option value="65ded1920a2a2e2fd47bad30">A</option>
+      <option value="660214d7556604590d3fb558">B</option>
+      <option value="660214f2556604590d3fb55a">C</option>
+      <option value="660214fc556604590d3fb55c">D</option>
+      <option value="6602150f556604590d3fb55e">E</option>
+      <option value="66021519556604590d3fb560">F</option>
+    </select>
+    <button id="startTrack" type="button">Start Tracking</button>
+    <button id="stopTrack" type="button">Stop Tracking</button>
+    <table>
+        <tr>
+          <th>Parameter</th>
+          <th>Value</th>
+        </tr>
+        <tr>
+          <td>Position Accuracy</td>
+          <td><code id="accuracy"></code></td>
+        </tr>
+        <tr>
+          <td>Altitude</td>
+          <td><code id="altitude"></code></td>
+        </tr>
+        <tr>
+          <td>Altitude Accuracy</td>
+          <td><code id="altitudeAccuracy"></code></td>
+        </tr>
+        <tr>
+          <td>Heading</td>
+          <td><code id="heading"></code></td>
+        </tr>
+        <tr>
+          <td>Speed</td>
+          <td><code id="speed"></code></td>
+        </tr>
+      </table>
     <script type="text/javascript">
         let latitude = null;
         let longitude = null;
         let intervalId = null;
+        let tracking = false;
 
         const view = new ol.View({
             center: [0, 0],
@@ -36,14 +101,17 @@
         });
 
         const map = new ol.Map({
-            layers: [
-            new ol.layer.Tile({
-                source: new ol.source.OSM(),
-            }),
-            ],
-            target: 'map',
-            view: view,
-        });
+        target: 'map',
+        layers: [
+          new ol.layer.Tile({
+            source: new ol.source.OSM()
+          })
+        ],
+        view: new ol.View({
+          center: ol.proj.fromLonLat([121.078999, 14.640817]),
+          zoom: 16
+        })
+      });
 
         const geolocation = new ol.Geolocation({
             // enableHighAccuracy must be set to true to have the heading value.
@@ -57,13 +125,25 @@
             return document.getElementById(id);
         }
 
-        el('track').addEventListener('change', function () {
-            geolocation.setTracking(this.checked);
-            if (this.checked) {
+        el('startTrack').addEventListener('click', function () {
+            tracking = true;
+            geolocation.setTracking(tracking);
+            this.innerText = 'Tracking...';
             intervalId = setInterval(updatePosition, 10000); // 10000 milliseconds = 10 seconds
-            } else if (intervalId) {
-            clearInterval(intervalId);
+        });
+
+        el('stopTrack').addEventListener('click', function () {
+            tracking = false;
+            geolocation.setTracking(tracking);
+            this.innerText = 'Stopped';
+            if (intervalId) {
+                clearInterval(intervalId);
             }
+            updatePosition(); // Call updatePosition when tracking stops
+            setTimeout(() => {
+                this.innerText = 'Stop Tracking';
+                el('startTrack').innerText = 'Start Tracking';
+            }, 2000); // Reset the button text after 2 seconds
         });
 
         // update the HTML page when the position changes.
@@ -104,7 +184,12 @@
         );
 
         function updatePosition() {
-            const coordinates = geolocation.getPosition();
+            let coordinates;
+            if (tracking) {
+            coordinates = geolocation.getPosition();
+            } else {
+            coordinates = [0, 0];
+            }
             positionFeature.setGeometry(coordinates ? new ol.geom.Point(coordinates) : null);
             if (coordinates) {
             latitude = coordinates[0];
@@ -115,7 +200,8 @@
             };
             console.log(locationData);
             // Send the location data to the server
-            fetch('https://tracktransport.azurewebsites.net/locations/65ded1920a2a2e2fd47bad30', {
+            const line = document.getElementById('lineSelect').value;
+            fetch(`http://localhost:3005/locations/${line}`, {
                 method: 'PUT',
                 headers: {
                 'Content-Type': 'application/json'
@@ -125,7 +211,7 @@
             console.log('Data Sent');
             }
         }
-
+        
         new ol.layer.Vector({
             map: map,
             source: new ol.source.Vector({
