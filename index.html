@@ -201,11 +201,12 @@
             console.log(locationData);
             // Send the location data to the server
             const line = document.getElementById('lineSelect').value;
-            fetch(`http://localhost:3005/locations/${line}`, {
+            fetch(`http://track-my-transportation.azurewebsites.net/locations/${line}`, {
                 method: 'PUT',
                 headers: {
                 'Content-Type': 'application/json'
                 },
+                mode: 'cors',
                 body: JSON.stringify(locationData)
             });
             console.log('Data Sent');
